@@ -1,0 +1,6 @@
+aws_region = "us-east-1"
+main_vpc_cidr = "10.0.0.0/16"
+private_subnet_range_a = "10.0.0.0/24"
+private_subnet_range_b = "10.0.1.0/24"
+public_subnet_range_a = "10.0.2.0/24"
+environment = "dev"
