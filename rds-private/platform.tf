@@ -3,7 +3,7 @@ provider "aws" {
    default_tags {
       tags = {
          Environment = "dev"
-         Service     = "tf-vpc-example"
+         Service     = "go-api-mysql"
          CreatedBy   = "terraform"
       }
   }
