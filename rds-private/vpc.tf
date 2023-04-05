@@ -20,6 +20,7 @@ resource "aws_subnet" "private_subnet_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.private_subnet_range_a
   map_public_ip_on_launch = false
+  availability_zone = "us-east-1a"
   tags = {
     "Name" = "${var.environment}-private-subnet-a"
   }
@@ -29,6 +30,7 @@ resource "aws_subnet" "private_subnet_b" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.private_subnet_range_b
   map_public_ip_on_launch = false
+  availability_zone = "us-east-1b"
   tags = {
     "Name" = "${var.environment}-private-subnet-b"
   }
@@ -89,7 +91,40 @@ resource "aws_security_group" "default" {
   description = "Default security group to allow inbound/outbound from the VPC"
   vpc_id      = aws_vpc.main.id
   depends_on  = [aws_vpc.main]
+  
   ingress {
+    from_port = "0"
+    to_port   = "0"
+    protocol  = "-1"
+    self      = true
+  }
+ 
+  # Allow SSH for EC2 instances`
+  ingress {
+    description = "Allow SSH"
+    from_port = "22"
+    to_port   = "22"
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow HTTP Traffic"
+    from_port = "80"
+    to_port   = "80"
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow HTTPS Traffic"
+    from_port = "443"
+    to_port   = "443"
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
     from_port = "0"
     to_port   = "0"
     protocol  = "-1"
@@ -97,12 +132,23 @@ resource "aws_security_group" "default" {
   }
 
   egress {
+    description = "Allow outbound traffic"
     from_port = "0"
     to_port   = "0"
     protocol  = "-1"
-    self      = "true"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
+# # Allow SSH for EC2 instances`
+# resource "aws_security_group_rule" "allow_ssh" {
+#   type              = "ingress"
+#   from_port         = 22
+#   to_port           = 22
+#   protocol          = "tcp"
+#   cidr_blocks       = ["0.0.0.0/0"]
+#   security_group_id = aws_security_group.default.id
+# }
 
 ###########################
 ########### RDS ###########
@@ -112,6 +158,7 @@ resource "aws_security_group" "default" {
 resource "aws_db_subnet_group" "private_db_subnet" {
   name        = "mysql-rds-private-subnet-group"
   description = "Private subnets for RDS instance"
+  # Subnet IDs must be in two different AZ. Define them explicitly in each subnet with the availability_zone property
   subnet_ids  = ["${aws_subnet.private_subnet_a.id}", "${aws_subnet.private_subnet_b.id}"]
 }
 
@@ -140,16 +187,20 @@ resource "aws_db_instance" "default" {
   storage_type = "gp2"
   # Specific Relational Database Software https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Welcome.html#Welcome.Concepts.DBInstance
   engine         = "mysql"
-  engine_version = "5.7"
+  # InvalidParameterCombination: RDS does not support creating a DB instance with the following combination: DBInstanceClass=db.t4g.micro, Engine=mysql, EngineVersion=5.7.41,
+  # https://aws.amazon.com/about-aws/whats-new/2021/09/amazon-rds-t4g-mysql-mariadb-postgresql/
+  engine_version = "8.0.32"
   # See instance pricing https://aws.amazon.com/rds/mysql/pricing/?pg=pr&loc=2
   instance_class = "db.t4g.micro"
   # name is deprecated, use db_name instead
   db_name              = "sample"
   username             = "dbadmin"
   password             = "<PASSWORD-HERE>"
-  parameter_group_name = "default.mysql5.7"
+  # parameter_group_name = "default.mysql8.0.32"
   # Name of DB subnet group. DB instance will be created in the VPC associated with the DB subnet group.
   db_subnet_group_name = aws_db_subnet_group.private_db_subnet.name
+  # Error: final_snapshot_identifier is required when skip_final_snapshot is false
+  skip_final_snapshot = true
 }
 
 
@@ -159,7 +210,9 @@ resource "aws_db_instance" "default" {
 resource "aws_instance" "go_api" {
   # https://cloud-images.ubuntu.com/locator/ec2/
   ami                         = "ami-0afb477ff8d65bb67"
-  instance_type               = "t2.micro"
+  # creating EC2 Instance: InvalidParameterValue: The architecture 'i386,x86_64' of the specified instance type does not match the architecture 'arm64' of the specified AMI.
+  # aws ec2 describe-instance-types --filters Name=processor-info.supported-architecture,Values=arm64 --query "InstanceTypes[*].InstanceType" --output text
+  instance_type               = "t4g.micro"
   subnet_id                   = aws_subnet.public_subnet_a.id
   associate_public_ip_address = true
   key_name                    = aws_key_pair.ec2_key_pair.key_name
@@ -170,12 +223,12 @@ resource "aws_instance" "go_api" {
   ]
   root_block_device {
     delete_on_termination = true
-    iops                  = 150
+    # iops                  = 150 # only valid for volume_type io1
     volume_size           = 50
     volume_type           = "gp2"
   }
   tags = {
-    # Name = "SERVER01"
+    "Name" = "go-api-mysql"
     "OS" = "ubuntu"
   }
 
@@ -191,8 +244,11 @@ resource "aws_instance" "go_api" {
 
   user_data = <<-EOF
   #!/bin/bash
-  sudo yum update -y
-  sudo yum install -y golang
+  sudo apt update -y
+  sudo apt install -y golang
+  sudo git clone https://github.com/codeherk/go-api-example
+  sudo cd go-api-example
+  sudo go run main.go
   EOF
 }
 
@@ -207,7 +263,9 @@ resource "tls_private_key" "rsa" {
 
 # Generates a local file 
 # https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file 
-resource "local_file" "tf_key" {
+resource "local_sensitive_file" "tf_key" {
   content  = tls_private_key.rsa.private_key_pem
-  filename = "ec2_key_pair"
+  file_permission = "600"
+  directory_permission = "700"
+  filename = "${aws_key_pair.ec2_key_pair.key_name}.pem"
 }
