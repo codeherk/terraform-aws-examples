@@ -179,7 +179,7 @@ resource "aws_instance" "go_api" {
     "OS" = "ubuntu"
   }
 
-  depends_on = [aws_security_group.default]
+  depends_on = [aws_security_group.default, aws_key_pair.ec2_key_pair]
 
   # user_data = <<-EOF
   # #!/bin/bash
