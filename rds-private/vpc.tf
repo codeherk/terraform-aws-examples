@@ -46,7 +46,7 @@ resource "aws_subnet" "public_subnet_a" {
 
 # Create Route table for Private Subnets
 resource "aws_route_table" "private_rt" {
-  vpc_id = aws_vpc.vpc.id
+  vpc_id = aws_vpc.main.id
   tags = {
     "Name" = "${var.environment}-private-route-table"
   }
@@ -87,8 +87,8 @@ resource "aws_route_table_association" "public_rt_association_a" {
 resource "aws_security_group" "default" {
   name        = "${var.environment}-default-sg"
   description = "Default security group to allow inbound/outbound from the VPC"
-  vpc_id      = aws_vpc.vpc.id
-  depends_on  = [aws_vpc.vpc]
+  vpc_id      = aws_vpc.main.id
+  depends_on  = [aws_vpc.main]
   ingress {
     from_port = "0"
     to_port   = "0"
@@ -101,9 +101,6 @@ resource "aws_security_group" "default" {
     to_port   = "0"
     protocol  = "-1"
     self      = "true"
-  }
-  tags = {
-    "Environment" = "${var.environment}"
   }
 }
 
@@ -122,8 +119,8 @@ resource "aws_db_subnet_group" "private_db_subnet" {
 resource "aws_security_group" "rds_sg" {
   name        = "${var.environment}-rds-sg"
   description = "Allow inbound/outbound MySQL traffic"
-  vpc_id      = aws_vpc.vpc.id
-  depends_on  = [aws_vpc.vpc]
+  vpc_id      = aws_vpc.main.id
+  depends_on  = [aws_vpc.main]
   ingress {
     from_port = "3306"
     to_port   = "3306"
@@ -165,7 +162,7 @@ resource "aws_instance" "go_api" {
   instance_type               = "t2.micro"
   subnet_id                   = aws_subnet.public_subnet_a.id
   associate_public_ip_address = true
-  key_name                    = aws_key_pair.ec2_key_pair
+  key_name                    = aws_key_pair.ec2_key_pair.key_name
 
 
   vpc_security_group_ids = [
