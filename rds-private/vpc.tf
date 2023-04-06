@@ -179,7 +179,7 @@ resource "aws_security_group" "rds_sg" {
 
 
 # RDS Instance
-resource "aws_db_instance" "default" {
+resource "aws_db_instance" "mysql_8" {
   # Storage for instance in gigabytes
   allocated_storage = 10
   # The name of the RDS instance
@@ -193,6 +193,8 @@ resource "aws_db_instance" "default" {
   engine_version = "8.0.32"
   # See instance pricing https://aws.amazon.com/rds/mysql/pricing/?pg=pr&loc=2
   instance_class = "db.t4g.micro"
+  
+  # mysql -u dbadmin -p '<password>' -h 'endpoint' -P 3306 -D sample
   # name is deprecated, use db_name instead
   db_name              = "sample"
   username             = "dbadmin"
@@ -202,6 +204,10 @@ resource "aws_db_instance" "default" {
   db_subnet_group_name = aws_db_subnet_group.private_db_subnet.name
   # Error: final_snapshot_identifier is required when skip_final_snapshot is false
   skip_final_snapshot = true
+
+  vpc_security_group_ids = [
+    aws_security_group.rds_sg.id
+  ]
 }
 
 
