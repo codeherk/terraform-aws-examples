@@ -41,6 +41,7 @@ resource "aws_subnet" "public_subnet_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_range_a
   map_public_ip_on_launch = true
+  availability_zone = "us-east-1a"
   tags = {
     "Name" = "${var.environment}-public-subnet-a"
   }
@@ -246,9 +247,8 @@ resource "aws_instance" "go_api" {
   #!/bin/bash
   sudo apt update -y
   sudo apt install -y golang
-  sudo git clone https://github.com/codeherk/go-api-example
-  sudo cd go-api-example
-  sudo go run main.go
+  sudo git clone https://github.com/codeherk/go-api-example /home/ubuntu/go-api-example
+  go run /home/ubuntu/go-api-example/main.go 
   EOF
 }
 
