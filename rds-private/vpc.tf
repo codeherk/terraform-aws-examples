@@ -92,53 +92,6 @@ resource "aws_security_group" "default" {
   description = "Default security group to allow inbound/outbound from the VPC"
   vpc_id      = aws_vpc.main.id
   depends_on  = [aws_vpc.main]
-
-  # ingress {
-  #   from_port = "0"
-  #   to_port   = "0"
-  #   protocol  = "-1"
-  #   self      = true
-  # }
-
-  # Allow SSH for EC2 instances`
-  # ingress {
-  #   description = "Allow SSH"
-  #   from_port = "22"
-  #   to_port   = "22"
-  #   protocol  = "tcp"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
-
-  # ingress {
-  #   description = "Allow HTTP Traffic"
-  #   from_port = "80"
-  #   to_port   = "80"
-  #   protocol  = "tcp"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
-
-  # ingress {
-  #   description = "Allow HTTPS Traffic"
-  #   from_port = "443"
-  #   to_port   = "443"
-  #   protocol  = "tcp"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
-
-  # egress {
-  #   from_port = "0"
-  #   to_port   = "0"
-  #   protocol  = "-1"
-  #   self      = true
-  # }
-
-  # egress {
-  #   description = "Allow outbound traffic"
-  #   from_port = "0"
-  #   to_port   = "0"
-  #   protocol  = "-1"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
 }
 
 # Allow inbound SSH for EC2 instances
@@ -204,15 +157,6 @@ resource "aws_security_group" "rds_sg" {
   description = "Allow inbound/outbound MySQL traffic"
   vpc_id      = aws_vpc.main.id
   depends_on  = [aws_vpc.main]
-
-  # # Allow MySQL connections 
-  # ingress {
-  #   description = "Allow TCP connection from instances with this security group"
-  #   from_port = "3306"
-  #   to_port   = "3306"
-  #   protocol  = "tcp"
-  #   cidr_blocks = [aws_security_group.default.cidr_block]
-  # }
 }
 
 # Allow inbound MySQL connections
@@ -301,7 +245,7 @@ resource "aws_instance" "go_api" {
   user_data = <<-EOF
   #!/bin/bash
   sudo apt update -y
-  sudo apt install -y golang
+  sudo apt install golang -y
   sudo git clone https://github.com/codeherk/go-api-example /home/ubuntu/go-api-example
   go run /home/ubuntu/go-api-example/main.go 
   EOF
