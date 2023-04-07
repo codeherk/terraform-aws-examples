@@ -75,6 +75,6 @@ output "rds_instance_id" {
   description = "The ID of the RDS instance"
 }
 
-output "rds_private_ipv4" {
+output "rds_private_endpoint" {
   value = aws_db_instance.mysql_8.endpoint
 }

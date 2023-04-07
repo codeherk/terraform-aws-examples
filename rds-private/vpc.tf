@@ -93,63 +93,98 @@ resource "aws_security_group" "default" {
   vpc_id      = aws_vpc.main.id
   depends_on  = [aws_vpc.main]
   
-  ingress {
-    from_port = "0"
-    to_port   = "0"
-    protocol  = "-1"
-    self      = true
-  }
+  # ingress {
+  #   from_port = "0"
+  #   to_port   = "0"
+  #   protocol  = "-1"
+  #   self      = true
+  # }
  
   # Allow SSH for EC2 instances`
-  ingress {
-    description = "Allow SSH"
-    from_port = "22"
-    to_port   = "22"
-    protocol  = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # ingress {
+  #   description = "Allow SSH"
+  #   from_port = "22"
+  #   to_port   = "22"
+  #   protocol  = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 
-  ingress {
-    description = "Allow HTTP Traffic"
-    from_port = "80"
-    to_port   = "80"
-    protocol  = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # ingress {
+  #   description = "Allow HTTP Traffic"
+  #   from_port = "80"
+  #   to_port   = "80"
+  #   protocol  = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 
-  ingress {
-    description = "Allow HTTPS Traffic"
-    from_port = "443"
-    to_port   = "443"
-    protocol  = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # ingress {
+  #   description = "Allow HTTPS Traffic"
+  #   from_port = "443"
+  #   to_port   = "443"
+  #   protocol  = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 
-  egress {
-    from_port = "0"
-    to_port   = "0"
-    protocol  = "-1"
-    self      = true
-  }
+  # egress {
+  #   from_port = "0"
+  #   to_port   = "0"
+  #   protocol  = "-1"
+  #   self      = true
+  # }
 
-  egress {
-    description = "Allow outbound traffic"
-    from_port = "0"
-    to_port   = "0"
-    protocol  = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # egress {
+  #   description = "Allow outbound traffic"
+  #   from_port = "0"
+  #   to_port   = "0"
+  #   protocol  = "-1"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 }
 
-# # Allow SSH for EC2 instances`
-# resource "aws_security_group_rule" "allow_ssh" {
-#   type              = "ingress"
-#   from_port         = 22
-#   to_port           = 22
-#   protocol          = "tcp"
-#   cidr_blocks       = ["0.0.0.0/0"]
-#   security_group_id = aws_security_group.default.id
-# }
+# Allow inbound SSH for EC2 instances
+resource "aws_security_group_rule" "allow_ssh_in" {
+  description = "Allow SSH"
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.default.id
+}
+
+# Allow inbound HTTP for EC2 instances
+resource "aws_security_group_rule" "allow_http_in" {
+  description = "Allow inbound HTTP traffic"
+  type              = "ingress"
+  from_port = "80"
+  to_port   = "80"
+  protocol  = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.default.id
+}
+
+# Allow inbound HTTPS for EC2 instances
+resource "aws_security_group_rule" "allow_https_in" {
+  description = "Allow inbound HTTPS traffic"
+  type              = "ingress"
+  from_port = "443"
+  to_port   = "443"
+  protocol  = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.default.id
+}
+
+# Allow all outbound traffic
+resource "aws_security_group_rule" "allow_all_out" {
+  description = "Allow outbound traffic"
+  type              = "egress"
+  from_port = "0"
+  to_port   = "0"
+  protocol  = "-1"
+  cidr_blocks = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.default.id
+}
+
 
 ###########################
 ########### RDS ###########
@@ -169,12 +204,26 @@ resource "aws_security_group" "rds_sg" {
   description = "Allow inbound/outbound MySQL traffic"
   vpc_id      = aws_vpc.main.id
   depends_on  = [aws_vpc.main]
-  ingress {
-    from_port = "3306"
-    to_port   = "3306"
-    protocol  = "tcp"
-    self      = true
-  }
+  
+  # # Allow MySQL connections 
+  # ingress {
+  #   description = "Allow TCP connection from instances with this security group"
+  #   from_port = "3306"
+  #   to_port   = "3306"
+  #   protocol  = "tcp"
+  #   cidr_blocks = [aws_security_group.default.cidr_block]
+  # }
+}
+
+# Allow inbound MySQL connections
+resource "aws_security_group_rule" "allow_mysql_in" {
+  description = "Allow inbound MySQL connections"
+  type              = "ingress"
+  from_port = "3306"
+  to_port   = "3306"
+  protocol  = "tcp"
+  source_security_group_id = aws_security_group.default.id
+  security_group_id = aws_security_group.rds_sg.id
 }
 
 
@@ -194,7 +243,7 @@ resource "aws_db_instance" "mysql_8" {
   # See instance pricing https://aws.amazon.com/rds/mysql/pricing/?pg=pr&loc=2
   instance_class = "db.t4g.micro"
   
-  # mysql -u dbadmin -p '<password>' -h 'endpoint' -P 3306 -D sample
+  # mysql -u dbadmin -h <ENDPOINT> -P 3306 -D sample -p
   # name is deprecated, use db_name instead
   db_name              = "sample"
   username             = "dbadmin"
@@ -235,8 +284,8 @@ resource "aws_instance" "go_api" {
     volume_type           = "gp2"
   }
   tags = {
-    "Name" = "go-api-mysql"
-    "OS" = "ubuntu"
+    Name = "go-api-mysql"
+    OS = "ubuntu"
   }
 
   depends_on = [aws_security_group.default, aws_key_pair.ec2_key_pair]
