@@ -127,6 +127,16 @@ resource "aws_security_group_rule" "allow_https_in" {
   security_group_id = aws_security_group.default.id
 }
 
+resource "aws_security_group_rule" "allow_http_in_api" {
+  description       = "Allow inbound HTTPS traffic"
+  type              = "ingress"
+  from_port         = "8090"
+  to_port           = "8090"
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.default.id
+}
+
 # Allow all outbound traffic
 resource "aws_security_group_rule" "allow_all_out" {
   description       = "Allow outbound traffic"
@@ -170,7 +180,6 @@ resource "aws_security_group_rule" "allow_mysql_in" {
   security_group_id        = aws_security_group.rds_sg.id
 }
 
-
 # RDS Instance
 resource "aws_db_instance" "mysql_8" {
   # Storage for instance in gigabytes
@@ -191,7 +200,7 @@ resource "aws_db_instance" "mysql_8" {
   # name is deprecated, use db_name instead
   db_name  = "sample"
   username = "dbadmin"
-  password = "<PASSWORD-HERE>"
+  password = data.aws_ssm_parameter.db_password.value
   # parameter_group_name = "default.mysql8.0.32"
   # Name of DB subnet group. DB instance will be created in the VPC associated with the DB subnet group.
   db_subnet_group_name = aws_db_subnet_group.private_db_subnet.name
@@ -216,7 +225,7 @@ resource "aws_instance" "go_api" {
   subnet_id                   = aws_subnet.public_subnet_a.id
   associate_public_ip_address = true
   key_name                    = aws_key_pair.ec2_key_pair.key_name
-
+  iam_instance_profile        = aws_iam_instance_profile.instance_profile.name
 
   vpc_security_group_ids = [
     aws_security_group.default.id
@@ -234,21 +243,13 @@ resource "aws_instance" "go_api" {
 
   depends_on = [aws_security_group.default, aws_key_pair.ec2_key_pair]
 
-  # user_data = <<-EOF
-  # #!/bin/bash
-  # sudo apt update -y
-  # sudo apt install apache2 -y
-  # sudo systemctl start apache2
-  # sudo bash -c 'echo your very first web server > /var/www/html/index.html'
-  # EOF
-
-  user_data = <<-EOF
-  #!/bin/bash
-  sudo apt update -y
-  sudo apt install golang -y
-  sudo git clone https://github.com/codeherk/go-api-example /home/ubuntu/go-api-example
-  go run /home/ubuntu/go-api-example/main.go 
-  EOF
+  user_data = base64encode(templatefile("user_data.sh", {
+    DB_USER = aws_db_instance.mysql_8.username
+    DB_PASSWORD_PARAM = data.aws_ssm_parameter.db_password.name
+    DB_HOST = aws_db_instance.mysql_8.address
+    DB_PORT = aws_security_group_rule.allow_mysql_in.from_port
+    DB_NAME = aws_db_instance.mysql_8.db_name
+  }))
 }
 
 resource "aws_key_pair" "ec2_key_pair" {
@@ -267,4 +268,44 @@ resource "local_sensitive_file" "tf_key" {
   file_permission      = "600"
   directory_permission = "700"
   filename             = "${aws_key_pair.ec2_key_pair.key_name}.pem"
+}
+
+# Reference an SSM parameter for the password (already created in AWS Console)
+data "aws_ssm_parameter" "db_password" {
+  name        = "/dev/goapi/db/password"
+  # description = "Password for go API MySQL Database"
+  # type        = "SecureString"
+  # value       = "hpyWhatADay!"  # Update with your desired password
+}
+
+# Create an IAM instance profile for the EC2 instance
+resource "aws_iam_instance_profile" "instance_profile" {
+  name = "ec2-instance-profile"
+  role = aws_iam_role.instance_role.name
+}
+
+# Create an IAM role for the EC2 instance
+resource "aws_iam_role" "instance_role" {
+  name = "ec2-instance-role"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+# Attach the necessary IAM policy to the instance role
+resource "aws_iam_role_policy_attachment" "instance_policy_attachment" {
+  role       = aws_iam_role.instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
 }
