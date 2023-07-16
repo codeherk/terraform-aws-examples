@@ -105,28 +105,6 @@ resource "aws_security_group_rule" "allow_ssh_in" {
   security_group_id = aws_security_group.default.id
 }
 
-# Allow inbound HTTP for EC2 instances
-resource "aws_security_group_rule" "allow_http_in" {
-  description       = "Allow inbound HTTP traffic"
-  type              = "ingress"
-  from_port         = "80"
-  to_port           = "80"
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.default.id
-}
-
-# Allow inbound HTTPS for EC2 instances
-resource "aws_security_group_rule" "allow_https_in" {
-  description       = "Allow inbound HTTPS traffic"
-  type              = "ingress"
-  from_port         = "443"
-  to_port           = "443"
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.default.id
-}
-
 resource "aws_security_group_rule" "allow_http_in_api" {
   description       = "Allow inbound HTTPS traffic"
   type              = "ingress"
@@ -195,6 +173,7 @@ resource "aws_db_instance" "mysql_8" {
   engine_version = "8.0.32"
   # See instance pricing https://aws.amazon.com/rds/mysql/pricing/?pg=pr&loc=2
   instance_class = "db.t4g.micro"
+  multi_az = true
 
   # mysql -u dbadmin -h <ENDPOINT> -P 3306 -D sample -p
   # name is deprecated, use db_name instead
